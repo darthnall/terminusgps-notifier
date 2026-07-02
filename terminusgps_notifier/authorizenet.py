@@ -22,7 +22,11 @@ def get_authorizenet_service() -> AuthorizenetService:
     :rtype: :py:obj:`~terminusgps.authorizenet.service.AuthorizenetService`
 
     """
-    return AuthorizenetService()
+    return AuthorizenetService(
+        login_id=settings.MERCHANT_AUTH_LOGIN_ID,
+        transaction_key=settings.MERCHANT_AUTH_TRANSACTION_KEY,
+        environment=settings.MERCHANT_AUTH_ENVIRONMENT,
+    )
 
 
 def get_hosted_profile_page_url() -> str:
