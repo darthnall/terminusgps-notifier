@@ -1,6 +1,9 @@
 from django import forms
 from django.contrib.auth.forms import BaseUserCreationForm
-from django.core.validators import validate_comma_separated_integer_list
+from django.core.validators import (
+    ValidationError,
+    validate_comma_separated_integer_list,
+)
 from django.db import models
 from django.forms import widgets
 from django.utils.translation import gettext_lazy as _
@@ -283,12 +286,12 @@ class GeofenceTriggerForm(forms.Form):
         min_value=0,
     )
     max_speed = forms.IntegerField(
-        min_value=0,
-        max_value=255,
-        label=_("Maximum speed"),
         help_text=_(
             "Provide the maximum speed required to trigger the notification in km/h."
         ),
+        label=_("Maximum speed"),
+        max_value=255,
+        min_value=0,
     )
     include_lbs = forms.TypedChoiceField(
         choices=[
@@ -306,6 +309,41 @@ class GeofenceTriggerForm(forms.Form):
         label=_("Logical operator"),
         required=False,
     )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data:
+            min_speed = cleaned_data["min_speed"]
+            max_speed = cleaned_data["max_speed"]
+            if min_speed > max_speed:
+                error_message = _(
+                    "This value cannot be greater than %(max_speed)s, got %(min_speed)s."
+                )
+                self.add_error(
+                    "min_speed",
+                    ValidationError(
+                        error_message,
+                        code="invalid",
+                        params={
+                            "min_speed": min_speed,
+                            "max_speed": max_speed,
+                        },
+                    ),
+                )
+            if max_speed < min_speed:
+                self.add_error(
+                    "max_speed",
+                    ValidationError(
+                        _(
+                            "This value cannot be less than %(min_speed)s, got %(max_speed)s."
+                        ),
+                        code="invalid",
+                        params={
+                            "min_speed": min_speed,
+                            "max_speed": max_speed,
+                        },
+                    ),
+                )
 
 
 class AddressTriggerForm(forms.Form):
@@ -430,6 +468,40 @@ class AddressTriggerForm(forms.Form):
         label=_("Include LBS messages"),
     )
 
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data:
+            min_speed = cleaned_data["min_speed"]
+            max_speed = cleaned_data["max_speed"]
+            if min_speed > max_speed:
+                self.add_error(
+                    "min_speed",
+                    ValidationError(
+                        _(
+                            "This value cannot be greater than %(max_speed)s, got %(min_speed)s."
+                        ),
+                        code="invalid",
+                        params={
+                            "min_speed": min_speed,
+                            "max_speed": max_speed,
+                        },
+                    ),
+                )
+            if max_speed < min_speed:
+                self.add_error(
+                    "max_speed",
+                    ValidationError(
+                        _(
+                            "This value cannot be less than %(min_speed)s, got %(max_speed)s."
+                        ),
+                        code="invalid",
+                        params={
+                            "min_speed": min_speed,
+                            "max_speed": max_speed,
+                        },
+                    ),
+                )
+
 
 class SpeedTriggerForm(forms.Form):
     lower_bound = forms.FloatField(
@@ -512,6 +584,41 @@ class SpeedTriggerForm(forms.Form):
             "Select whether to trigger only when a driver is assigned or not."
         ),
     )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data:
+            min_speed = cleaned_data["min_speed"]
+            max_speed = cleaned_data["max_speed"]
+            if min_speed > max_speed:
+                error_message = _(
+                    "This value cannot be greater than %(max_speed)s, got %(min_speed)s."
+                )
+                self.add_error(
+                    "min_speed",
+                    ValidationError(
+                        error_message,
+                        code="invalid",
+                        params={
+                            "min_speed": min_speed,
+                            "max_speed": max_speed,
+                        },
+                    ),
+                )
+            if max_speed < min_speed:
+                self.add_error(
+                    "max_speed",
+                    ValidationError(
+                        _(
+                            "This value cannot be less than %(min_speed)s, got %(max_speed)s."
+                        ),
+                        code="invalid",
+                        params={
+                            "min_speed": min_speed,
+                            "max_speed": max_speed,
+                        },
+                    ),
+                )
 
 
 class AlarmTriggerForm(forms.Form):
