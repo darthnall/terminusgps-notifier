@@ -21,7 +21,28 @@
     </div>
     <form class="@container p-8 border bg-stone-50 border-stone-300 shadow-sm rounded flex flex-col gap-8 dark:bg-gray-700 dark:border-gray-800" method="post" action="{% url 'terminusgps_notifier:create notification step review' %}">
         {% csrf_token %}
-        {{ params|pprint }}
+        <div class="flex flex-col gap-8">
+            <div class="flex flex-col gap-4">
+                <p class="font-semibold text-lg">{{ params.n }}</p>
+                <p>{{ params.txt }}</p>
+            </div>
+            <div class="flex flex-col gap-4">
+                <p class="font-semibold text-lg">Actions</p>
+                <div class="divide-y shadow-inner border border-stone-600 max-h-48 overflow-y-auto rounded">
+                    {% for actions in params.act %}
+                    <p class="p-4 bg-stone-200 even:bg-stone-100">{{ actions }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="flex flex-col gap-4">
+                <p class="font-semibold text-lg">Units/Groups</p>
+                <div class="divide-y shadow-inner border border-stone-600 max-h-48 overflow-y-auto rounded">
+                    {% for id in params.un %}
+                    <p class="p-4 bg-stone-200 even:bg-stone-100" hx-target="this" hx-trigger="load once" hx-get="{% url 'terminusgps_notifier:unit name' id %}">Loading...</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
         <button class="px-4 py-2 border border-current cursor-pointer rounded text-gray-100 bg-terminus-red-800 hover:bg-terminus-red-400 ease-in-out duration-300 transition-colors" type="submit">Create Notification</button>
     </form>
 </div>
