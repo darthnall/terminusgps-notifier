@@ -1,4 +1,5 @@
 {% extends "terminusgps_notifier/layout.html" %}
+{% load humanize %}
 {% block title %}{{ object.n|default:'Notification Details' }}{% endblock title %}
 {% partialdef main %}
 {% if messages %}
@@ -27,7 +28,7 @@
         <div class="flex flex-col gap-8">
             <div class="flex flex-col gap-4">
                 <p class="font-semibold text-lg">{{ object.n }}</p>
-                <p>Activated {{ object.ac }} time{{ object.ac|pluralize }}.</p>
+                <p>Activated {{ object.ac|intcomma }} time{{ object.ac|pluralize }}.</p>
             </div>
             <div class="flex flex-col gap-4">
                 <p class="font-semibold text-lg">Actions</p>
