@@ -731,6 +731,8 @@ def create_notification_step_review(request: HtmxHttpRequest) -> HttpResponse:
 
     params = get_wialon_api_parameters(request)
     wialon_sid = request.session["wialon_sid"]
+    params["id"] = 0
+    params["callMode"] = "create"
     if request.method == "POST":
         try:
             create_notification(wialon_sid, params)
