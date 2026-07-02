@@ -890,6 +890,41 @@ class InterpositionTriggerForm(forms.Form):
         required=False,
     )
 
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data:
+            min_speed = cleaned_data["min_speed"]
+            max_speed = cleaned_data["max_speed"]
+            if min_speed > max_speed:
+                error_message = _(
+                    "This value cannot be greater than %(max_speed)s, got %(min_speed)s."
+                )
+                self.add_error(
+                    "min_speed",
+                    ValidationError(
+                        error_message,
+                        code="invalid",
+                        params={
+                            "min_speed": min_speed,
+                            "max_speed": max_speed,
+                        },
+                    ),
+                )
+            if max_speed < min_speed:
+                self.add_error(
+                    "max_speed",
+                    ValidationError(
+                        _(
+                            "This value cannot be less than %(min_speed)s, got %(max_speed)s."
+                        ),
+                        code="invalid",
+                        params={
+                            "min_speed": min_speed,
+                            "max_speed": max_speed,
+                        },
+                    ),
+                )
+
 
 class ExcessOfMessagesTriggerForm(forms.Form):
     flags = forms.TypedChoiceField(
