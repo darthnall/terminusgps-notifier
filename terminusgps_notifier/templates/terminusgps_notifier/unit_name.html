@@ -1,8 +1,6 @@
 {% extends "terminusgps_notifier/layout.html" %}
 {% partialdef main %}
-{% for value, label in object_list %}
-<option value="{{ value }}">{{ label }}</option>
-{% endfor %}
+{{ name }}
 {% endpartialdef main %}
 {% block content %}
 {% partial main %}

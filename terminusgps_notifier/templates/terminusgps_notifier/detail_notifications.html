@@ -24,7 +24,28 @@
         <h3 class="font-semibold">Terminus GPS Notifier</h3>
     </div>
     <div class="@container p-8 border bg-stone-50 border-stone-300 shadow-sm rounded flex flex-col gap-8 dark:bg-gray-700 dark:border-gray-800">
-        {{ object|pprint }}
+        <div class="flex flex-col gap-8">
+            <div class="flex flex-col gap-4">
+                <p class="font-semibold text-lg">{{ object.n }}</p>
+                <p>Activated {{ object.ac }} time{{ object.ac|pluralize }}.</p>
+            </div>
+            <div class="flex flex-col gap-4">
+                <p class="font-semibold text-lg">Actions</p>
+                <div class="divide-y shadow-inner border border-stone-600 max-h-48 overflow-y-auto rounded">
+                    {% for action in object.act %}
+                    <p class="p-4 bg-stone-200 even:bg-stone-100">{{ action.t }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="flex flex-col gap-4">
+                <p class="font-semibold text-lg">Units/Groups</p>
+                <div class="divide-y shadow-inner border border-stone-600 max-h-48 overflow-y-auto rounded">
+                    {% for id in object.un %}
+                    <p class="p-4 bg-stone-200 even:bg-stone-100" hx-get="{% url 'terminusgps_notifier:unit name' id %}" hx-target="this" hx-trigger="load once">Loading...</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endpartialdef main %}

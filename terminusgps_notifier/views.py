@@ -17,13 +17,18 @@ from django.template.response import TemplateResponse
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.module_loading import import_string
-from django.views.decorators.cache import cache_control, never_cache
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import (
+    cache_control,
+    cache_page,
+    never_cache,
+)
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import (
     require_GET,
     require_http_methods,
     require_POST,
 )
+from django.views.decorators.vary import vary_on_headers
 from django.views.generic import RedirectView
 from terminusgps.authorizenet import api
 from terminusgps.authorizenet.service import AuthorizenetError
@@ -51,6 +56,7 @@ from terminusgps_notifier.wialon import (
     get_phones,
     get_resources,
     get_session,
+    get_unit,
 )
 
 logger = logging.getLogger(__name__)
@@ -199,6 +205,9 @@ class TerminusGPSNotifierLogoutView(LogoutView):
     template_name = "terminusgps_notifier/logged_out.html"
 
 
+@vary_on_headers("HX-Request")
+@cache_page(60 * 5)
+@csrf_protect
 @require_http_methods(["GET", "POST"])
 @htmx_template("terminusgps_notifier/register.html")
 def register(request: HtmxHttpRequest) -> HttpResponse:
@@ -219,6 +228,7 @@ def register(request: HtmxHttpRequest) -> HttpResponse:
     return TemplateResponse(request, request.template_name, {"form": form})
 
 
+@never_cache
 @require_GET
 def health_check(request: HttpRequest) -> HttpResponse:
     return HttpResponse("I'm alive".encode("utf-8"), status=200)
@@ -233,24 +243,28 @@ def wialon_login(request: HttpRequest) -> HttpResponse:
     )(request)
 
 
+@cache_page(60 * 5)
 @require_GET
 @htmx_template("terminusgps_notifier/home.html")
 def home(request: HtmxHttpRequest) -> HttpResponse:
     return TemplateResponse(request, request.template_name, {})
 
 
+@cache_page(60 * 5)
 @require_GET
 @htmx_template("terminusgps_notifier/contact.html")
 def contact(request: HtmxHttpRequest) -> HttpResponse:
     return TemplateResponse(request, request.template_name, {})
 
 
+@cache_page(60 * 5)
 @require_GET
 @htmx_template("terminusgps_notifier/terms.html")
 def terms(request: HtmxHttpRequest) -> HttpResponse:
     return TemplateResponse(request, request.template_name, {})
 
 
+@cache_page(60 * 5)
 @require_GET
 @htmx_template("terminusgps_notifier/privacy.html")
 def privacy(request: HtmxHttpRequest) -> HttpResponse:
@@ -356,9 +370,11 @@ def create_subscription(request: HtmxHttpRequest) -> HttpResponse:
     return TemplateResponse(request, request.template_name, {"form": form})
 
 
+@vary_on_headers("HX-Request")
+@cache_control(private=True)
+@cache_page(60 * 3)
 @login_required
 @require_GET
-@cache_control(private=True)
 @htmx_template("terminusgps_notifier/dashboard.html")
 def dashboard(request: HtmxHttpRequest) -> HttpResponse:
     update_fields = []
@@ -452,9 +468,10 @@ def authorizenet_hosted_profile_page(request: HtmxHttpRequest) -> HttpResponse:
 
 
 @login_required
+@cache_page(60 * 5)
+@cache_control(private=True)
 @require_GET
 @persistent_wialon_session
-@cache_control(private=True)
 @htmx_template("terminusgps_notifier/list_resources.html")
 def list_resources(request: HtmxHttpRequest) -> HttpResponse:
     wialon_sid = request.session["wialon_sid"]
@@ -472,9 +489,10 @@ def list_resources(request: HtmxHttpRequest) -> HttpResponse:
 
 
 @login_required
+@cache_page(60 * 5)
+@cache_control(private=True)
 @require_GET
 @persistent_wialon_session
-@cache_control(private=True)
 @htmx_template("terminusgps_notifier/select_resources.html")
 def select_resources(request: HtmxHttpRequest) -> HttpResponse:
     wialon_sid = request.session["wialon_sid"]
@@ -506,7 +524,9 @@ def select_geofences(
         messages.error(request, error)
         object_list = []
     else:
-        object_list = response
+        object_list = [
+            (f"{zone['id']}:{zone['ct']}", zone["n"]) for zone in response
+        ]
     context = {"object_list": object_list}
     return TemplateResponse(request, request.template_name, context)
 
@@ -533,10 +553,12 @@ def list_notifications(
     return TemplateResponse(request, request.template_name, context)
 
 
+@vary_on_headers("HX-Request")
+@cache_page(60 * 5)
+@cache_control(private=True)
 @login_required
 @require_GET
 @persistent_wialon_session
-@cache_control(private=True)
 @htmx_template("terminusgps_notifier/detail_resources.html")
 def detail_resources(
     request: HtmxHttpRequest, resource_id: str
@@ -555,10 +577,12 @@ def detail_resources(
     return TemplateResponse(request, request.template_name, context)
 
 
+@vary_on_headers("HX-Request")
+@cache_page(60 * 5)
+@cache_control(private=True)
 @login_required
 @require_GET
 @persistent_wialon_session
-@cache_control(private=True)
 @htmx_template("terminusgps_notifier/select_units.html")
 def select_units(request: HtmxHttpRequest) -> HttpResponse:
     if not request.GET.get("resource"):
@@ -738,3 +762,19 @@ def trigger_parameters_form(request: HtmxHttpRequest) -> HttpResponse:
     form_cls = forms.TRIGGER_FORMS_MAP[str(t)]
     context = {"form": form_cls()}
     return TemplateResponse(request, request.template_name, context)
+
+
+@vary_on_headers("HX-Request")
+@cache_control(private=True)
+@require_GET
+@persistent_wialon_session
+@htmx_template("terminusgps_notifier/unit_name.html")
+def unit_name(request: HtmxHttpRequest, unit_id: int) -> HttpResponse:
+    try:
+        response = get_unit(request.session["wialon_sid"], unit_id)
+    except WialonAPIError as error:
+        logger.error(error)
+        name = None
+    else:
+        name = response["item"]["nm"]
+    return TemplateResponse(request, request.template_name, {"name": name})

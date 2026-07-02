@@ -271,3 +271,9 @@ def get_notifications(
 def create_notification(wialon_sid: str, params: dict) -> dict:
     session = get_session(wialon_sid)
     return session.wialon_api.resource_update_notification(**params)
+
+
+def get_unit(wialon_sid: str, unit_id: int) -> dict:
+    session = get_session(wialon_sid)
+    params = {"id": unit_id, "flags": 1}
+    return session.wialon_api.core_search_item(**params)

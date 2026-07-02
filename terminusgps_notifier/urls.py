@@ -18,8 +18,14 @@ urlpatterns = [
     path("terms/", views.terms, name="terms"),
     path("privacy/", views.privacy, name="privacy"),
     path("units/select/", views.select_units, name="select units"),
+    path("units/<int:unit_id>/name/", views.unit_name, name="unit name"),
     path("resources/select/", views.select_resources, name="select resources"),
     path("resources/list/", views.list_resources, name="list resources"),
+    path(
+        "resources/<int:resource_id>/geofences/",
+        views.select_geofences,
+        name="select geofences",
+    ),
     path(
         "resources/<str:resource_id>/details/",
         views.detail_resources,

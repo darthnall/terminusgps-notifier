@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import BaseUserCreationForm
+from django.core.validators import validate_comma_separated_integer_list
 from django.db import models
 from django.forms import widgets
 from django.utils.translation import gettext_lazy as _
@@ -262,6 +263,7 @@ class GeofenceTriggerForm(forms.Form):
     geozone_ids = forms.CharField(
         label=_("Geofences"),
         help_text=_("Select geofences for notification trigger."),
+        validators=[validate_comma_separated_integer_list],
     )
     type = forms.TypedChoiceField(
         choices=[
@@ -669,7 +671,9 @@ class ConnectionLossTriggerForm(forms.Form):
         choices=[(0, _("Out of Geofence")), (1, _("Within Geofence"))],
         coerce=int,
     )
-    geozones_list = forms.CharField()
+    geozones_list = forms.CharField(
+        validators=[validate_comma_separated_integer_list]
+    )
 
 
 class SMSTriggerForm(forms.Form):
@@ -759,7 +763,9 @@ class InterpositionTriggerForm(forms.Form):
             "Select whether to trigger notification on approach or withdrawl."
         ),
     )
-    unit_guids = forms.CharField()
+    unit_guids = forms.CharField(
+        validators=[validate_comma_separated_integer_list]
+    )
     include_lbs = forms.TypedChoiceField(
         choices=[
             (0, _("Do not process LBS messages")),
@@ -925,7 +931,9 @@ class FuelFillingTriggerForm(forms.Form):
             "Select whether to ignore geofences or only trigger when within geofence(s)."
         ),
     )
-    geozones_list = forms.CharField()
+    geozones_list = forms.CharField(
+        validators=[validate_comma_separated_integer_list]
+    )
     realtime_only = forms.TypedChoiceField(
         choices=[
             (0, _("Recalculate historical data")),
