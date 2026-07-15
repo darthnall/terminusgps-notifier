@@ -15,6 +15,8 @@ COPY . /usr/local/terminusgps-notifier
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --all-groups --locked
 
+RUN mkdir -p /root/.cache/uv && chmod 755 /root/.cache/uv
+
 ENV PATH="/usr/local/terminusgps-notifier/.venv/bin:$PATH"
 
 ENTRYPOINT []
