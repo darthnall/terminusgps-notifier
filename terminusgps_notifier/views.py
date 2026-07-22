@@ -10,7 +10,6 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView, redirect_to_login
-from django.db.models import F
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
@@ -53,7 +52,6 @@ from terminusgps_notifier.wialon import (
     get_geozones,
     get_items,
     get_notifications,
-    get_phones,
     get_resources,
     get_session,
     get_unit,
@@ -168,30 +166,38 @@ def notify(request: HttpRequest, method: str) -> HttpResponse:
         return HttpResponse(status=406)
     profile = get_object_or_404(Profile, user__pk=form.cleaned_data["user_id"])
     if not profile.user.is_staff:
-        if not subscription_is_active(profile.subscription_id):
+        if not profile.has_active_subscription():
             return HttpResponse(
                 "Invalid subscription".encode("utf-8"), status=403
             )
-        if profile.messages_count > profile.messages_limit:
+        if not profile.has_available_messages():
             return HttpResponse("Messages maxed".encode("utf-8"), status=403)
-    phones = get_phones(profile.token, form.cleaned_data["unit_id"])
+    phones = profile.get_destination_phone_numbers(
+        form.cleaned_data["unit_id"]
+    )
     if not phones:
         return HttpResponse("No phones found".encode("utf-8"), status=204)
     dispatchers = get_dispatchers(form, method)
     response = send_notifications(method, phones, dispatchers)
     if response.status_code == 200:
-        profile.messages_count = F("messages_count") + len(phones)
-        profile.save(update_fields=["messages_count"])
-        DispatchLog.objects.create(
-            user_id=form.cleaned_data["user_id"],
-            unit_id=form.cleaned_data["unit_id"],
-            message=form.cleaned_data["message"],
-            msg_time_int=form.cleaned_data["msg_time_int"],
-            phones=phones,
-            method=method,
-            pub_date=timezone.now(),
-        )
+        profile.update_messages_count_and_save(len(phones))
+        create_dispatch_log(form=form, phones=phones, method=method)
     return response
+
+
+def create_dispatch_log(
+    form: forms.NotificationDispatchForm, phones: list[str], method: str
+) -> DispatchLog:
+    dispatch_log = DispatchLog()
+    dispatch_log.user_id = form.cleaned_data["user_id"]
+    dispatch_log.unit_id = form.cleaned_data["unit_id"]
+    dispatch_log.message = form.cleaned_data["message"]
+    dispatch_log.msg_time_int = form.cleaned_data["msg_time_int"]
+    dispatch_log.phones = phones
+    dispatch_log.method = method
+    dispatch_log.pub_date = timezone.now()
+    dispatch_log.save()
+    return dispatch_log
 
 
 class TerminusGPSNotifierLoginView(LoginView):

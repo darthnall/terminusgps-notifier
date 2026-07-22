@@ -123,13 +123,8 @@ def get_subscription_status(id: int | None) -> str | None:
         return
     anet_service = get_authorizenet_service()
     anet_request = api.get_subscription_status(id)
-    try:
-        anet_response = anet_service.execute(anet_request)
-    except AuthorizenetError as error:
-        logger.error(error)
-        return
-    else:
-        return str(anet_response.status)
+    anet_response = anet_service.execute(anet_request)
+    return getattr(anet_response, "status", None)
 
 
 def subscription_is_active(id: int | None) -> bool:

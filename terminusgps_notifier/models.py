@@ -3,6 +3,11 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from encrypted_field import EncryptedField
+from terminusgps.authorizenet.service import AuthorizenetError
+
+from terminusgps_notifier.authorizenet import get_subscription_status
+from terminusgps_notifier.constants import SUBSCRIPTION_NOT_FOUND
+from terminusgps_notifier.wialon import get_phones
 
 
 class Profile(models.Model):
@@ -25,6 +30,29 @@ class Profile(models.Model):
 
     def __str__(self) -> str:
         return str(self.user)
+
+    def get_destination_phone_numbers(self, unit_id: int) -> list[str]:
+        api_token = str(self.token) if self.token is not None else self.token
+        return get_phones(api_token, unit_id)
+
+    def update_messages_count_and_save(self, num_messages: int) -> None:
+        self.messages_count = models.F("messages_count") + num_messages
+        self.save(update_fields=["messages_count"])
+
+    def has_available_messages(self) -> bool:
+        return self.messages_count < self.messages_limit
+
+    def has_active_subscription(self) -> bool:
+        if not self.subscription_id:
+            return False
+        try:
+            status = get_subscription_status(int(self.subscription_id))
+        except AuthorizenetError as error:
+            if error.code == SUBSCRIPTION_NOT_FOUND:
+                return False
+            raise
+        else:
+            return status in ("active", "canceled")
 
 
 class DispatchLog(models.Model):

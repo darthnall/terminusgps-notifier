@@ -226,11 +226,11 @@ class NotifyTestCase(TestCase):
     def test_profile_messages_count_incremented_on_success(self):
         """Fails if a profile's messages count wasn't incremented after notification dispatch."""
         with patch(
-            "terminusgps_notifier.views.get_phones",
+            "terminusgps_notifier.models.Profile.get_destination_phone_numbers",
             return_value=["+15555555555"],
         ):
             with patch(
-                "terminusgps_notifier.views.subscription_is_active",
+                "terminusgps_notifier.models.Profile.has_active_subscription",
                 return_value=True,
             ):
                 profile = models.Profile.objects.first()
@@ -252,11 +252,11 @@ class NotifyTestCase(TestCase):
     def test_dispatch_log_created(self):
         """Fails if a dispatch log for the notification wasn't created."""
         with patch(
-            "terminusgps_notifier.views.get_phones",
+            "terminusgps_notifier.models.Profile.get_destination_phone_numbers",
             return_value=["+15555555555"],
         ):
             with patch(
-                "terminusgps_notifier.views.subscription_is_active",
+                "terminusgps_notifier.models.Profile.has_active_subscription",
                 return_value=True,
             ):
                 self.client.post(
