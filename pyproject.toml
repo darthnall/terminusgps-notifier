@@ -90,6 +90,7 @@ deploy = [
     "uvicorn>=0.35.0",
 ]
 dev = [
+    "ipython>=9.15.0",
     "sphinx-rtd-theme>=3.0.2",
     "sphinx>=8.2.3",
 ]
