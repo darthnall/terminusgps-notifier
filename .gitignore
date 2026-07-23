@@ -11,3 +11,4 @@ logs/
 db.sqlite3
 docs/build/
 node_modules/
+src/settings/test_*.py
