@@ -291,8 +291,12 @@ class DashboardViewTestCase(TestCase):
 
     def test_profile_added_to_context(self):
         """Fails if the user's profile wasn't added to the view context."""
-        response = self.client.get("/dashboard/")
-        self.assertIn("profile", response.context_data)
+        with patch(
+            "terminusgps_notifier.models.Profile.has_active_subscription",
+            return_value=True,
+        ):
+            response = self.client.get("/dashboard/")
+            self.assertIn("profile", response.context_data)
 
     def test_wialon_redirect_uri_added_to_context(self):
         """Fails if the redirect uri for Wialon token generation wasn't added to the view context."""
