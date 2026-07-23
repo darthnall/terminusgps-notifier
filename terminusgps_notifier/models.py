@@ -32,8 +32,7 @@ class Profile(models.Model):
         return str(self.user)
 
     def get_destination_phone_numbers(self, unit_id: int) -> list[str]:
-        api_token = str(self.token) if self.token is not None else self.token
-        return get_phones(api_token, unit_id)
+        return get_phones(self.token, unit_id)
 
     def update_messages_count_and_save(self, num_messages: int) -> None:
         self.messages_count = models.F("messages_count") + num_messages
