@@ -67,6 +67,13 @@ class ProfileTestCase(TestCase):
         test_profile.update_messages_count_and_save(num_messages=1)
         self.assertEqual(test_profile.messages_count, 1)
 
+    def test_has_active_subscription_with_no_subscription_id(self):
+        """Fails if :py:meth:`has_active_subscription` returns :py:obj:`True` with no :py:attr:`subscription_id` set on the profile."""
+        test_profile = Profile.objects.get(pk=1)
+        test_profile.subscription_id = ""
+        test_profile.save(update_fields=["subscription_id"])
+        self.assertFalse(test_profile.has_active_subscription())
+
     def test_has_active_subscription_with_active_status(self):
         """Fails if :py:meth:`has_active_subscription` doesn't return :py:obj:`True` with a status of 'active'."""
         with patch(
@@ -122,3 +129,15 @@ class ProfileTestCase(TestCase):
         ):
             test_profile = Profile.objects.get(pk=1)
             self.assertFalse(test_profile.has_active_subscription())
+
+    def test_has_active_subscription_authorizeneterror_reraised(self):
+        """Fails if :py:exec:`AuthorizenetError` was raised by the method and not re-raised."""
+        with patch(
+            "terminusgps_notifier.models.get_subscription_status",
+            side_effect=AuthorizenetError(
+                message="Unknown Error", code="E00001"
+            ),
+        ):
+            test_profile = Profile.objects.get(pk=1)
+            with self.assertRaises(AuthorizenetError):
+                test_profile.has_active_subscription()
