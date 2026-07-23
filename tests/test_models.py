@@ -50,7 +50,7 @@ class ProfileTestCase(TestCase):
         """Fails if :py:meth:`has_available_messages` returns :py:obj:`True` with maxed messages."""
         test_profile = Profile.objects.get(pk=1)
         test_profile.messages_count = 500
-        test_profile.messages_count = 500
+        test_profile.messages_limit = 500
         test_profile.save(update_fields=["messages_count", "messages_limit"])
         self.assertFalse(test_profile.has_available_messages())
         test_profile.messages_count = 501
