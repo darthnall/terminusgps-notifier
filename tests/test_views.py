@@ -5,7 +5,6 @@ from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
-from terminusgps.authorizenet.service import AuthorizenetService
 from terminusgps.wialon.session import WialonSession
 
 from terminusgps_notifier import forms, models, views
@@ -185,29 +184,25 @@ class NotifyTestCase(TestCase):
 
     def test_profile_with_staff_user_counts_as_subscribed(self):
         """Fails if a staff user is denied due to an invalid subscription."""
-        with patch(
-            "terminusgps_notifier.authorizenet.get_authorizenet_service",
-            return_value=MagicMock(AuthorizenetService),
-        ):
-            user = get_user_model().objects.get(pk=1)
-            user.is_staff = True
-            user.save(update_fields=["is_staff"])
-            response = self.client.post(
-                "/v3/notify/sms/",
-                {
-                    "user_id": "1",
-                    "unit_id": "12345678",
-                    "message": "Test",
-                    "msg_time_int": 0,
-                },
-            )
-            self.assertNotEqual(response, 406)
+        user = get_user_model().objects.get(pk=1)
+        user.is_staff = True
+        user.save(update_fields=["is_staff"])
+        response = self.client.post(
+            "/v3/notify/sms/",
+            {
+                "user_id": "1",
+                "unit_id": "12345678",
+                "message": "Test",
+                "msg_time_int": 0,
+            },
+        )
+        self.assertNotEqual(response, 406)
 
     def test_profile_with_maxed_out_messages_returns_403(self):
         """Fails if a profile with maxed out messages doesn't return status code 403."""
         with patch(
-            "terminusgps_notifier.authorizenet.get_authorizenet_service",
-            return_value=MagicMock(AuthorizenetService),
+            "terminusgps_notifier.models.Profile.has_active_subscription",
+            return_value=True,
         ):
             profile = models.Profile.objects.get(pk=1)
             profile.messages_count = 500
@@ -300,8 +295,12 @@ class DashboardViewTestCase(TestCase):
 
     def test_wialon_redirect_uri_added_to_context(self):
         """Fails if the redirect uri for Wialon token generation wasn't added to the view context."""
-        response = self.client.get("/dashboard/")
-        self.assertIn("wialon_redirect_uri", response.context_data)
+        with patch(
+            "terminusgps_notifier.models.Profile.has_active_subscription",
+            return_value=True,
+        ):
+            response = self.client.get("/dashboard/")
+            self.assertIn("wialon_redirect_uri", response.context_data)
 
 
 class CreateNotificationStepOneViewTestCase(TestCase):
