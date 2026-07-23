@@ -2,7 +2,7 @@ import datetime
 import decimal
 import logging
 
-from authorizenet import apicontractsv1
+from authorizenet import apicontractsv1, apicontrollers
 from django.conf import settings
 from lxml.objectify import ObjectifiedElement
 from terminusgps.authorizenet import api
@@ -11,12 +11,10 @@ from terminusgps.authorizenet.service import (
     AuthorizenetService,
 )
 
-from . import constants
-
 logger = logging.getLogger(__name__)
 
 
-def build_subscription_contract(
+def get_subscription_contract(
     profile_id: str,
     address_id: str,
     payment_id: str,
@@ -47,6 +45,35 @@ def build_subscription_contract(
     contract.amount = decimal.Decimal("60.00")
     contract.trialAmount = decimal.Decimal("0.00")
     return contract
+
+
+def get_merchant_auth() -> apicontractsv1.merchantAuthenticationType:
+    return apicontractsv1.merchantAuthenticationType(
+        name=settings.MERCHANT_AUTH_LOGIN_ID,
+        transactionKey=settings.MERCHANT_AUTH_TRANSACTION_KEY,
+    )
+
+
+def cancel_subscription(
+    subscription_id: str, reference_id: str | None = None
+) -> ObjectifiedElement:
+    request = apicontractsv1.ARBCancelSubscriptionRequest()
+    request.merchantAuthentication = get_merchant_auth()
+    request.subscriptionId = subscription_id
+    if reference_id is not None:
+        request.refId = reference_id
+    controller = apicontrollers.ARBCancelSubscriptionController(request)
+    controller.execute()
+    response = controller.getresponse()
+    if (
+        not hasattr(response, "messages")
+        or response.messages.resultCode != "Ok"
+    ):
+        raise AuthorizenetError(
+            response.messages.message[0]["text"].text,
+            response.messages.message[0]["code"].text,
+        )
+    return response
 
 
 def get_authorizenet_service() -> AuthorizenetService:
@@ -134,49 +161,3 @@ def create_customer_profile(
     anet_service = get_authorizenet_service()
     anet_request = api.create_customer_profile(contract)
     return anet_service.execute(anet_request)
-
-
-def get_subscription_status(id: int | None) -> str | None:
-    """
-    Returns the status for an Authorizenet subscription by id.
-
-    Possible statuses:
-
-        * "active"
-        * "expired"
-        * "suspended"
-        * "canceled"
-        * "terminated"
-
-    :param id: A subscription id.
-    :type id: int | None
-    :returns: The subscription's current status.
-    :rtype: str | None
-
-    """
-    if not id:
-        return
-    anet_service = get_authorizenet_service()
-    anet_request = api.get_subscription_status(id)
-    anet_response = anet_service.execute(anet_request)
-    return getattr(anet_response, "status", None)
-
-
-def subscription_is_active(id: int | None) -> bool:
-    """
-    Returns whether a subscription is active by id.
-
-    :returns: Whether the subscription is active.
-    :rtype: bool
-
-    """
-    if not id:
-        return False
-    try:
-        status = get_subscription_status(id)
-    except AuthorizenetError as error:
-        if error.code == constants.SUBSCRIPTION_NOT_FOUND:
-            return False
-        raise
-    else:
-        return status in ("active", "canceled")

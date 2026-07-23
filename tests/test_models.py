@@ -13,8 +13,10 @@ class ProfileTestCase(TestCase):
         "terminusgps_notifier/tests/test_profile.json",
     ]
 
-    def test_get_destination_phone_numbers_with_saved_phones(self) -> None:
-        """Fails if :py:meth:`get_destination_phone_numbers` doesn't return a list of phone numbers."""
+    def test_get_wialon_destination_phone_numbers_with_saved_phones(
+        self,
+    ) -> None:
+        """Fails if :py:meth:`get_wialon_destination_phone_numbers` doesn't return a list of phone numbers."""
         test_unit_id = 12345678
         expected_phones = ["+17135555555", "+18325555555"]
         with patch(
@@ -22,16 +24,22 @@ class ProfileTestCase(TestCase):
             return_value=expected_phones,
         ):
             test_profile = Profile.objects.get(pk=1)
-            result = test_profile.get_destination_phone_numbers(test_unit_id)
+            result = test_profile.get_wialon_destination_phone_numbers(
+                test_unit_id
+            )
             self.assertEqual(result, expected_phones)
 
-    def test_get_destination_phone_numbers_without_saved_phones(self) -> None:
-        """Fails if :py:meth:`get_destination_phone_numbers` returns a list of phone numbers for a unit without any."""
+    def test_get_wialon_destination_phone_numbers_without_saved_phones(
+        self,
+    ) -> None:
+        """Fails if :py:meth:`get_wialon_destination_phone_numbers` returns a list of phone numbers for a unit without any."""
         test_unit_id = 12345678
         expected_phones = []
         with patch("terminusgps_notifier.models.get_phones", return_value=[]):
             test_profile = Profile.objects.get(pk=1)
-            result = test_profile.get_destination_phone_numbers(test_unit_id)
+            result = test_profile.get_wialon_destination_phone_numbers(
+                test_unit_id
+            )
             self.assertEqual(result, expected_phones)
 
     def test_has_available_messages_with_available_messages(self):
@@ -77,7 +85,7 @@ class ProfileTestCase(TestCase):
     def test_has_active_subscription_with_active_status(self):
         """Fails if :py:meth:`has_active_subscription` doesn't return :py:obj:`True` with a status of 'active'."""
         with patch(
-            "terminusgps_notifier.models.get_subscription_status",
+            "terminusgps_notifier.models.Profile.get_authorizenet_subscription_status",
             return_value="active",
         ):
             test_profile = Profile.objects.get(pk=1)
@@ -86,7 +94,7 @@ class ProfileTestCase(TestCase):
     def test_has_active_subscription_with_canceled_status(self):
         """Fails if :py:meth:`has_active_subscription` doesn't return :py:obj:`True` with a status of 'canceled'."""
         with patch(
-            "terminusgps_notifier.models.get_subscription_status",
+            "terminusgps_notifier.models.Profile.get_authorizenet_subscription_status",
             return_value="canceled",
         ):
             test_profile = Profile.objects.get(pk=1)
@@ -95,7 +103,7 @@ class ProfileTestCase(TestCase):
     def test_has_active_subscription_with_suspended_status(self):
         """Fails if :py:meth:`has_active_subscription` doesn't return :py:obj:`False` with a status of 'canceled'."""
         with patch(
-            "terminusgps_notifier.models.get_subscription_status",
+            "terminusgps_notifier.models.Profile.get_authorizenet_subscription_status",
             return_value="suspended",
         ):
             test_profile = Profile.objects.get(pk=1)
@@ -104,7 +112,7 @@ class ProfileTestCase(TestCase):
     def test_has_active_subscription_with_terminated_status(self):
         """Fails if :py:meth:`has_active_subscription` doesn't return :py:obj:`False` with a status of 'canceled'."""
         with patch(
-            "terminusgps_notifier.models.get_subscription_status",
+            "terminusgps_notifier.models.Profile.get_authorizenet_subscription_status",
             return_value="terminated",
         ):
             test_profile = Profile.objects.get(pk=1)
@@ -113,7 +121,7 @@ class ProfileTestCase(TestCase):
     def test_has_active_subscription_with_expired_status(self):
         """Fails if :py:meth:`has_active_subscription` doesn't return :py:obj:`False` with a status of 'canceled'."""
         with patch(
-            "terminusgps_notifier.models.get_subscription_status",
+            "terminusgps_notifier.models.Profile.get_authorizenet_subscription_status",
             return_value="expired",
         ):
             test_profile = Profile.objects.get(pk=1)
@@ -122,7 +130,7 @@ class ProfileTestCase(TestCase):
     def test_has_active_subscription_subscription_not_found(self):
         """Fails if the subscription wasn't found in Authorizenet and :py:meth:`has_active_subscription` doesn't return :py:obj:`False`."""
         with patch(
-            "terminusgps_notifier.models.get_subscription_status",
+            "terminusgps_notifier.models.Profile.get_authorizenet_subscription_status",
             side_effect=AuthorizenetError(
                 message="Subscription not found", code=SUBSCRIPTION_NOT_FOUND
             ),
@@ -133,7 +141,7 @@ class ProfileTestCase(TestCase):
     def test_has_active_subscription_authorizeneterror_reraised(self):
         """Fails if :py:exec:`AuthorizenetError` was raised by the method and not re-raised."""
         with patch(
-            "terminusgps_notifier.models.get_subscription_status",
+            "terminusgps_notifier.models.Profile.get_authorizenet_subscription_status",
             side_effect=AuthorizenetError(
                 message="Unknown Error", code="E00001"
             ),

@@ -226,7 +226,7 @@ class NotifyTestCase(TestCase):
     def test_profile_messages_count_incremented_on_success(self):
         """Fails if a profile's messages count wasn't incremented after notification dispatch."""
         with patch(
-            "terminusgps_notifier.models.Profile.get_destination_phone_numbers",
+            "terminusgps_notifier.models.Profile.get_wialon_destination_phone_numbers",
             return_value=["+15555555555"],
         ):
             with patch(
@@ -252,7 +252,7 @@ class NotifyTestCase(TestCase):
     def test_dispatch_log_created(self):
         """Fails if a dispatch log for the notification wasn't created."""
         with patch(
-            "terminusgps_notifier.models.Profile.get_destination_phone_numbers",
+            "terminusgps_notifier.models.Profile.get_wialon_destination_phone_numbers",
             return_value=["+15555555555"],
         ):
             with patch(

@@ -1,16 +1,14 @@
 import decimal
 from datetime import date
-from unittest.mock import patch
 
 from django.test import TestCase, override_settings
-from terminusgps.authorizenet.service import AuthorizenetError
 
 from terminusgps_notifier import authorizenet
 
 
-class BuildSubscriptionContractTestCase(TestCase):
+class GetSubscriptionContractTestCase(TestCase):
     def test_required_attributes_present_in_contract(self):
-        """Fails if :py:func:`build_subscription_contract` returns an invalid contract."""
+        """Fails if :py:func:`get_subscription_contract` returns an invalid contract."""
         kwargs = {
             "profile_id": "1",
             "address_id": "2",
@@ -23,7 +21,7 @@ class BuildSubscriptionContractTestCase(TestCase):
             "interval_length": 1,
             "interval_unit": "months",
         }
-        generated_contract = authorizenet.build_subscription_contract(**kwargs)
+        generated_contract = authorizenet.get_subscription_contract(**kwargs)
         self.assertEqual(
             generated_contract.profile.customerProfileId, kwargs["profile_id"]
         )
@@ -68,14 +66,14 @@ class BuildSubscriptionContractTestCase(TestCase):
         )
 
     def test_start_date_not_provided(self):
-        """Succeeds if :py:func:`build_subscription_contract` returns a subscription contract without providing ``start_date``."""
+        """Succeeds if :py:func:`get_subscription_contract` returns a subscription contract without providing ``start_date``."""
         kwargs = {
             "profile_id": "1",
             "address_id": "2",
             "payment_id": "3",
             "start_date": None,
         }
-        generated_contract = authorizenet.build_subscription_contract(**kwargs)
+        generated_contract = authorizenet.get_subscription_contract(**kwargs)
         self.assertTrue(
             hasattr(generated_contract.paymentSchedule, "startDate")
         )
@@ -96,73 +94,3 @@ class GetHostedProfilePageUrlTestCase(TestCase):
         """Fails if the wrong url was returned with debug mode off."""
         url = authorizenet.get_hosted_profile_page_url()
         self.assertEqual(url, "https://accept.authorize.net/customer/manage")
-
-
-class SubscriptionIsActiveTestCase(TestCase):
-    def test_no_id_provided_returns_false(self):
-        """Fails if :py:obj:`False` wasn't returned with no id provided."""
-        result = authorizenet.subscription_is_active(id=None)
-        self.assertFalse(result)
-
-    def test_active_subscription_returns_true(self):
-        """Fails if :py:obj:`True` wasn't returned with an active subscription."""
-        with patch(
-            "terminusgps_notifier.authorizenet.get_subscription_status",
-            return_value="active",
-        ):
-            result = authorizenet.subscription_is_active(id=1)
-            self.assertTrue(result)
-
-    def test_canceled_subscription_returns_true(self):
-        """Fails if :py:obj:`True` wasn't returned with a canceled subscription."""
-        with patch(
-            "terminusgps_notifier.authorizenet.get_subscription_status",
-            return_value="canceled",
-        ):
-            result = authorizenet.subscription_is_active(id=1)
-            self.assertTrue(result)
-
-    def test_terminated_subscription_returns_false(self):
-        """Fails if :py:obj:`False` wasn't returned with a terminated subscription."""
-        with patch(
-            "terminusgps_notifier.authorizenet.get_subscription_status",
-            return_value="terminated",
-        ):
-            result = authorizenet.subscription_is_active(id=1)
-            self.assertFalse(result)
-
-    def test_suspended_subscription_returns_false(self):
-        """Fails if :py:obj:`False` wasn't returned with a suspended subscription."""
-        with patch(
-            "terminusgps_notifier.authorizenet.get_subscription_status",
-            return_value="suspended",
-        ):
-            result = authorizenet.subscription_is_active(id=1)
-            self.assertFalse(result)
-
-    def test_expired_subscription_returns_false(self):
-        """Fails if :py:obj:`False` wasn't returned with a expired subscription."""
-        with patch(
-            "terminusgps_notifier.authorizenet.get_subscription_status",
-            return_value="expired",
-        ):
-            result = authorizenet.subscription_is_active(id=1)
-            self.assertFalse(result)
-
-    def test_authorizeneterror_reraised(self):
-        """Fails if an Authorizenet error was raised but not reraised."""
-        with patch(
-            "terminusgps_notifier.authorizenet.get_subscription_status",
-            side_effect=AuthorizenetError(message="", code="E00000"),
-        ):
-            with self.assertRaises(AuthorizenetError):
-                authorizenet.subscription_is_active(id=1)
-
-    def test_authorizeneterror_e00035_returns_false(self):
-        """Fails if an Authorizenet error E00035 was raised and the return value was not :py:obj:`False`."""
-        with patch(
-            "terminusgps_notifier.authorizenet.get_subscription_status",
-            side_effect=AuthorizenetError(message="", code="E00035"),
-        ):
-            result = authorizenet.subscription_is_active(id=1)
-            self.assertFalse(result)

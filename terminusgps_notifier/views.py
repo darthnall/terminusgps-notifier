@@ -31,11 +31,9 @@ from terminusgps.wialon.session import WialonAPIError
 
 from terminusgps_notifier import forms
 from terminusgps_notifier.authorizenet import (
-    build_subscription_contract,
-    create_customer_profile,
     get_authorizenet_service,
     get_hosted_profile_page_url,
-    subscription_is_active,
+    get_subscription_contract,
 )
 from terminusgps_notifier.constants import (
     HOSTED_PROFILE_PAGE_SETTINGS,
@@ -130,7 +128,7 @@ def notify(request: HttpRequest, method: str) -> HttpResponse:
             )
         if not profile.has_available_messages():
             return HttpResponse("Messages maxed".encode("utf-8"), status=403)
-    phones = profile.get_destination_phone_numbers(
+    phones = profile.get_wialon_destination_phone_numbers(
         form.cleaned_data["unit_id"]
     )
     if not phones:
@@ -241,14 +239,12 @@ def source_code(request: HtmxHttpRequest) -> HttpResponse:
 @htmx_template("terminusgps_notifier/cancel_subscription.html")
 def cancel_subscription(request: HtmxHttpRequest) -> HttpResponse:
     profile = get_object_or_404(Profile, user=request.user)
-    if not profile.subscription_id:
+    if not profile.has_active_subscription():
         messages.warning(request, "No subscription to cancel.")
         return redirect("terminusgps_notifier:dashboard")
-    anet_request = api.cancel_subscription(profile.subscription_id)
-    anet_service = get_authorizenet_service()
     if request.method == "POST":
         try:
-            anet_service.execute(anet_request)
+            profile.cancel_authorizenet_subscription()
         except AuthorizenetError as error:
             logger.error(error)
             messages.error(request, error)
@@ -289,7 +285,7 @@ def create_subscription(request: HtmxHttpRequest) -> HttpResponse:
             data=request.POST,
         )
         if form.is_valid():
-            contract = build_subscription_contract(
+            contract = get_subscription_contract(
                 profile_id=profile.profile_id,
                 address_id=form.cleaned_data["address_id"],
                 payment_id=form.cleaned_data["payment_id"],
@@ -320,42 +316,22 @@ def create_subscription(request: HtmxHttpRequest) -> HttpResponse:
 @require_GET
 @htmx_template("terminusgps_notifier/dashboard.html")
 def dashboard(request: HtmxHttpRequest) -> HttpResponse:
-    update_fields = []
     profile, _ = Profile.objects.get_or_create(user=request.user)
     if access_token := request.GET.get("access_token"):
-        profile.token = str(access_token)
-        update_fields.append("token")
+        profile.set_wialon_api_token_and_save(access_token)
         messages.success(request, "Wialon account connected successfully!")
     if not profile.profile_id:
         try:
-            anet_response = create_customer_profile(
-                email=profile.user.email,
-                merchant_id=f"{profile.user.first_name} {profile.user.last_name}",
-                description=f"{profile.user.first_name} {profile.user.last_name}'s Customer Profile",
-            )
+            profile.create_authorizenet_customer_profile_and_save()
         except AuthorizenetError as error:
             logger.error(error)
             messages.error(request, error)
-        else:
-            profile.profile_id = str(anet_response.profile.customerProfileId)
-            profile.merchant_id = str(anet_response.profile.merchantCustomerId)
-            profile.description = str(anet_response.profile.description)
-            update_fields.extend(("profile_id", "merchant_id", "description"))
-
-    try:
-        subscribed = subscription_is_active(profile.subscription_id)
-    except AuthorizenetError as error:
-        logger.error(error)
-        subscribed = False
-
-    if update_fields:
-        profile.save(update_fields=update_fields)
     return TemplateResponse(
         request,
         request.template_name,
         {
             "profile": profile,
-            "subscribed": subscribed,
+            "subscribed": profile.has_active_subscription(),
             "wialon_redirect_uri": request.build_absolute_uri(
                 reverse("terminusgps_notifier:dashboard")
             ),
