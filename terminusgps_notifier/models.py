@@ -97,6 +97,16 @@ class Profile(models.Model):
         controller = apicontrollers.ARBCancelSubscriptionController(request)
         controller.execute()
         response = controller.getresponse()
+        if not all(
+            [
+                hasattr(response, "messages"),
+                response.messages.resultCode == "Ok",
+            ]
+        ):
+            raise AuthorizenetError(
+                response.messages.message[0]["text"].text,
+                response.messages.message[0]["code"].text,
+            )
         return response
 
     def get_authorizenet_subscription_status(
