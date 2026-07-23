@@ -1,11 +1,8 @@
 import asyncio
 import copy
-import decimal
 import logging
-import urllib.parse
 
 from asgiref.sync import async_to_sync
-from authorizenet import apicontractsv1
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -15,7 +12,6 @@ from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.utils.module_loading import import_string
 from django.views.decorators.cache import (
     cache_control,
     cache_page,
@@ -33,22 +29,29 @@ from terminusgps.authorizenet import api
 from terminusgps.authorizenet.service import AuthorizenetError
 from terminusgps.wialon.session import WialonAPIError
 
-from terminusgps_notifier import constants, forms
+from terminusgps_notifier import forms
 from terminusgps_notifier.authorizenet import (
+    build_subscription_contract,
     create_customer_profile,
     get_authorizenet_service,
     get_hosted_profile_page_url,
     subscription_is_active,
+)
+from terminusgps_notifier.constants import (
+    HOSTED_PROFILE_PAGE_SETTINGS,
+    TIMEZONES,
 )
 from terminusgps_notifier.decorators import (
     HtmxHttpRequest,
     htmx_template,
     persistent_wialon_session,
 )
-from terminusgps_notifier.dispatchers import NotificationDispatcher
+from terminusgps_notifier.dispatchers import get_dispatchers
 from terminusgps_notifier.models import DispatchLog, Profile
 from terminusgps_notifier.wialon import (
     create_notification,
+    generate_act,
+    generate_txt,
     get_geozones,
     get_items,
     get_notifications,
@@ -58,30 +61,6 @@ from terminusgps_notifier.wialon import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def get_dispatchers(
-    form: forms.NotificationDispatchForm, method: str
-) -> list[NotificationDispatcher]:
-    """
-    Returns a list of notification dispatchers.
-
-    :param form: A valid notification dispatch form.
-    :type form: :py:obj:`~django.forms.Form`
-    :param method: A notification method.
-    :type method: str
-    :raises ValueError: If the provided method was invalid.
-    :returns: A list of notification dispatcher objects.
-    :rtype: list[NotificationDispatcher]
-
-    """
-    if method not in settings.NOTIFICATION_DISPATCHERS:
-        raise ValueError(f"Invalid method: '{method}'")
-    dispatcher_classes = []
-    for dispatcher_path in settings.NOTIFICATION_DISPATCHERS[method]:
-        dispatcher_cls = import_string(dispatcher_path)
-        dispatcher_classes.append(dispatcher_cls)
-    return [dispatcher(form) for dispatcher in dispatcher_classes]
 
 
 @async_to_sync
@@ -117,27 +96,6 @@ async def send_notifications(method, phones, dispatchers) -> HttpResponse:
         f"All dispatchers failed for method: '{method}'".encode("utf-8"),
         status=500,
     )
-
-
-def generate_txt(user_id: int | None, message: str) -> str:
-    return urllib.parse.urlencode(
-        {
-            "user_id": user_id,
-            "unit_id": "%UNIT_ID%",
-            "message": message,
-            "msg_time_int": "%MSG_TIME_INT%",
-            "location": "%LOCATION%",
-            "unit_name": "%UNIT%",
-        },
-        safe="%",
-    )
-
-
-def generate_act(method: str) -> list[dict]:
-    url = urllib.parse.urljoin(
-        "https://api.terminusgps.com/", f"/v3/notify/{method}/"
-    )
-    return [{"t": "push_messages", "p": {"url": url, "get": 0}}]
 
 
 @require_POST
@@ -181,23 +139,16 @@ def notify(request: HttpRequest, method: str) -> HttpResponse:
     response = send_notifications(method, phones, dispatchers)
     if response.status_code == 200:
         profile.update_messages_count_and_save(len(phones))
-        create_dispatch_log(form=form, phones=phones, method=method)
+        DispatchLog.objects.create(
+            user_id=form.cleaned_data["user_id"],
+            unit_id=form.cleaned_data["unit_id"],
+            message=form.cleaned_data["message"],
+            msg_time_int=form.cleaned_data["msg_time_int"],
+            phones=phones,
+            method=method,
+            pub_date=timezone.now(),
+        )
     return response
-
-
-def create_dispatch_log(
-    form: forms.NotificationDispatchForm, phones: list[str], method: str
-) -> DispatchLog:
-    dispatch_log = DispatchLog()
-    dispatch_log.user_id = form.cleaned_data["user_id"]
-    dispatch_log.unit_id = form.cleaned_data["unit_id"]
-    dispatch_log.message = form.cleaned_data["message"]
-    dispatch_log.msg_time_int = form.cleaned_data["msg_time_int"]
-    dispatch_log.phones = phones
-    dispatch_log.method = method
-    dispatch_log.pub_date = timezone.now()
-    dispatch_log.save()
-    return dispatch_log
 
 
 class TerminusGPSNotifierLoginView(LoginView):
@@ -338,25 +289,11 @@ def create_subscription(request: HtmxHttpRequest) -> HttpResponse:
             data=request.POST,
         )
         if form.is_valid():
-            address_id = form.cleaned_data["address_id"]
-            payment_id = form.cleaned_data["payment_id"]
-            interval = apicontractsv1.paymentScheduleTypeInterval()
-            interval.length = 1
-            interval.unit = "months"
-            schedule = apicontractsv1.paymentScheduleType()
-            schedule.interval = interval
-            schedule.startDate = timezone.now()
-            schedule.totalOccurrences = 9999
-            schedule.trialOccurrences = 0
-            customer_profile = apicontractsv1.customerProfileIdType()
-            customer_profile.customerProfileId = profile.profile_id
-            customer_profile.customerAddressId = address_id
-            customer_profile.customerPaymentProfileId = payment_id
-            contract = apicontractsv1.ARBSubscriptionType()
-            contract.paymentSchedule = schedule
-            contract.profile = customer_profile
-            contract.amount = decimal.Decimal("60.00")
-            contract.trialAmount = decimal.Decimal("0.00")
+            contract = build_subscription_contract(
+                profile_id=profile.profile_id,
+                address_id=form.cleaned_data["address_id"],
+                payment_id=form.cleaned_data["payment_id"],
+            )
             anet_request = api.create_subscription(contract)
             try:
                 anet_response = anet_service.execute(anet_request)
@@ -456,7 +393,7 @@ def detail_notifications(
 def authorizenet_hosted_profile_page(request: HtmxHttpRequest) -> HttpResponse:
     profile = get_object_or_404(Profile, user=request.user)
     profile_id = int(profile.profile_id)
-    settings = copy.copy(constants.HOSTED_PROFILE_PAGE_SETTINGS)
+    settings = copy.copy(HOSTED_PROFILE_PAGE_SETTINGS)
     anet_request = api.get_accept_customer_profile_page(profile_id, settings)
     anet_service = get_authorizenet_service()
     try:
@@ -715,7 +652,7 @@ def create_notification_step_four(request: HtmxHttpRequest) -> HttpResponse:
             return redirect(
                 "terminusgps_notifier:create notification step review"
             )
-    context = {"timezones": constants.TIMEZONES, "form": form}
+    context = {"timezones": TIMEZONES, "form": form}
     return TemplateResponse(request, request.template_name, context)
 
 

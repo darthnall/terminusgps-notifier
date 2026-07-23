@@ -6,9 +6,12 @@ import aioboto3
 from django.conf import settings
 from django.http.response import sync_to_async
 from django.template.loader import render_to_string
+from django.utils.module_loading import import_string
 from twilio.http.async_http_client import AsyncTwilioHttpClient
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
+
+from terminusgps_notifier import forms
 
 from .forms import NotificationDispatchForm
 
@@ -193,3 +196,27 @@ class TwilioNotificationDispatcher(NotificationDispatcher):
             from_=from_number or settings.TWILIO_FROM_NUMBER,
             body=message,
         )
+
+
+def get_dispatchers(
+    form: forms.NotificationDispatchForm, method: str
+) -> list[NotificationDispatcher]:
+    """
+    Returns a list of notification dispatchers.
+
+    :param form: A valid notification dispatch form.
+    :type form: :py:obj:`~django.forms.Form`
+    :param method: A notification method.
+    :type method: str
+    :raises ValueError: If the provided method was invalid.
+    :returns: A list of notification dispatcher objects.
+    :rtype: list[NotificationDispatcher]
+
+    """
+    if method not in settings.NOTIFICATION_DISPATCHERS:
+        raise ValueError(f"Invalid method: '{method}'")
+    dispatcher_classes = []
+    for dispatcher_path in settings.NOTIFICATION_DISPATCHERS[method]:
+        dispatcher_cls = import_string(dispatcher_path)
+        dispatcher_classes.append(dispatcher_cls)
+    return [dispatcher(form) for dispatcher in dispatcher_classes]

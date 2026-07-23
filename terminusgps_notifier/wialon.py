@@ -1,4 +1,5 @@
 import logging
+import urllib.parse
 from collections.abc import Sequence
 
 from django.core.exceptions import ValidationError
@@ -7,6 +8,27 @@ from terminusgps.wialon import flags
 from terminusgps.wialon.session import WialonAPIError, WialonSession
 
 logger = logging.getLogger(__name__)
+
+
+def generate_txt(user_id: int | None, message: str) -> str:
+    return urllib.parse.urlencode(
+        {
+            "user_id": user_id,
+            "unit_id": "%UNIT_ID%",
+            "message": message,
+            "msg_time_int": "%MSG_TIME_INT%",
+            "location": "%LOCATION%",
+            "unit_name": "%UNIT%",
+        },
+        safe="%",
+    )
+
+
+def generate_act(method: str) -> list[dict]:
+    url = urllib.parse.urljoin(
+        "https://api.terminusgps.com/", f"/v3/notify/{method}/"
+    )
+    return [{"t": "push_messages", "p": {"url": url, "get": 0}}]
 
 
 def validate_e164_phone_number(value: str) -> None:

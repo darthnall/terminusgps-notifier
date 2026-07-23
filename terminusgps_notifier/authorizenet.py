@@ -1,3 +1,5 @@
+import datetime
+import decimal
 import logging
 
 from authorizenet import apicontractsv1
@@ -12,6 +14,39 @@ from terminusgps.authorizenet.service import (
 from . import constants
 
 logger = logging.getLogger(__name__)
+
+
+def build_subscription_contract(
+    profile_id: str,
+    address_id: str,
+    payment_id: str,
+    *,
+    start_date: datetime.date | None = None,
+    amount: decimal.Decimal = decimal.Decimal("60.00"),
+    trial_amount: decimal.Decimal = decimal.Decimal("0.00"),
+    total_occurrences: int = 9999,
+    trial_occurrences: int = 0,
+    interval_length: int = 1,
+    interval_unit: str = "months",
+) -> apicontractsv1.ARBSubscriptionType:
+    interval = apicontractsv1.paymentScheduleTypeInterval()
+    interval.length = interval_length
+    interval.unit = interval_unit
+    schedule = apicontractsv1.paymentScheduleType()
+    schedule.interval = interval
+    schedule.startDate = start_date or datetime.date.today()
+    schedule.totalOccurrences = total_occurrences
+    schedule.trialOccurrences = trial_occurrences
+    profile = apicontractsv1.customerProfileIdType()
+    profile.customerProfileId = profile_id
+    profile.customerAddressId = address_id
+    profile.customerPaymentProfileId = payment_id
+    contract = apicontractsv1.ARBSubscriptionType()
+    contract.paymentSchedule = schedule
+    contract.profile = profile
+    contract.amount = decimal.Decimal("60.00")
+    contract.trialAmount = decimal.Decimal("0.00")
+    return contract
 
 
 def get_authorizenet_service() -> AuthorizenetService:
