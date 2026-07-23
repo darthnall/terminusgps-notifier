@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
 from django.test import TestCase
+from terminusgps.authorizenet.service import AuthorizenetError
 
+from terminusgps_notifier.constants import SUBSCRIPTION_NOT_FOUND
 from terminusgps_notifier.models import Profile
 
 
@@ -19,7 +21,7 @@ class ProfileTestCase(TestCase):
             "terminusgps_notifier.models.get_phones",
             return_value=expected_phones,
         ):
-            test_profile = Profile.objects.first()
+            test_profile = Profile.objects.get(pk=1)
             result = test_profile.get_destination_phone_numbers(test_unit_id)
             self.assertEqual(result, expected_phones)
 
@@ -28,13 +30,13 @@ class ProfileTestCase(TestCase):
         test_unit_id = 12345678
         expected_phones = []
         with patch("terminusgps_notifier.models.get_phones", return_value=[]):
-            test_profile = Profile.objects.first()
+            test_profile = Profile.objects.get(pk=1)
             result = test_profile.get_destination_phone_numbers(test_unit_id)
             self.assertEqual(result, expected_phones)
 
     def test_has_available_messages_with_available_messages(self):
         """Fails if :py:meth:`has_available_messages` returns :py:obj:`False` with available messages."""
-        test_profile = Profile.objects.first()
+        test_profile = Profile.objects.get(pk=1)
         test_profile.messages_count = 0
         test_profile.messages_limit = 500
         test_profile.save(update_fields=["messages_count", "messages_limit"])
@@ -46,7 +48,7 @@ class ProfileTestCase(TestCase):
 
     def test_has_available_messages_with_max_messages(self):
         """Fails if :py:meth:`has_available_messages` returns :py:obj:`True` with maxed messages."""
-        test_profile = Profile.objects.first()
+        test_profile = Profile.objects.get(pk=1)
         test_profile.messages_count = 500
         test_profile.messages_count = 500
         test_profile.save(update_fields=["messages_count", "messages_limit"])
@@ -58,7 +60,7 @@ class ProfileTestCase(TestCase):
 
     def test_update_messages_count_and_save(self):
         """Fails if :py:meth:`update_messages_count_and_save` doesn't increment :py:attr:`messages_count` and save."""
-        test_profile = Profile.objects.first()
+        test_profile = Profile.objects.get(pk=1)
         test_profile.messages_count = 0
         test_profile.messages_limit = 500
         test_profile.save(update_fields=["messages_count", "messages_limit"])
@@ -71,7 +73,7 @@ class ProfileTestCase(TestCase):
             "terminusgps_notifier.models.get_subscription_status",
             return_value="active",
         ):
-            test_profile = Profile.objects.first()
+            test_profile = Profile.objects.get(pk=1)
             self.assertTrue(test_profile.has_active_subscription())
 
     def test_has_active_subscription_with_canceled_status(self):
@@ -80,7 +82,7 @@ class ProfileTestCase(TestCase):
             "terminusgps_notifier.models.get_subscription_status",
             return_value="canceled",
         ):
-            test_profile = Profile.objects.first()
+            test_profile = Profile.objects.get(pk=1)
             self.assertTrue(test_profile.has_active_subscription())
 
     def test_has_active_subscription_with_suspended_status(self):
@@ -89,7 +91,7 @@ class ProfileTestCase(TestCase):
             "terminusgps_notifier.models.get_subscription_status",
             return_value="suspended",
         ):
-            test_profile = Profile.objects.first()
+            test_profile = Profile.objects.get(pk=1)
             self.assertFalse(test_profile.has_active_subscription())
 
     def test_has_active_subscription_with_terminated_status(self):
@@ -98,7 +100,7 @@ class ProfileTestCase(TestCase):
             "terminusgps_notifier.models.get_subscription_status",
             return_value="terminated",
         ):
-            test_profile = Profile.objects.first()
+            test_profile = Profile.objects.get(pk=1)
             self.assertFalse(test_profile.has_active_subscription())
 
     def test_has_active_subscription_with_expired_status(self):
@@ -107,5 +109,16 @@ class ProfileTestCase(TestCase):
             "terminusgps_notifier.models.get_subscription_status",
             return_value="expired",
         ):
-            test_profile = Profile.objects.first()
+            test_profile = Profile.objects.get(pk=1)
+            self.assertFalse(test_profile.has_active_subscription())
+
+    def test_has_active_subscription_subscription_not_found(self):
+        """Fails if the subscription wasn't found in Authorizenet and :py:meth:`has_active_subscription` doesn't return :py:obj:`False`."""
+        with patch(
+            "terminusgps_notifier.models.get_subscription_status",
+            side_effect=AuthorizenetError(
+                message="Subscription not found", code=SUBSCRIPTION_NOT_FOUND
+            ),
+        ):
+            test_profile = Profile.objects.get(pk=1)
             self.assertFalse(test_profile.has_active_subscription())
