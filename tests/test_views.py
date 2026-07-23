@@ -169,8 +169,8 @@ class NotifyTestCase(TestCase):
     def test_profile_with_inactive_subscription_returns_403(self):
         """Fails if a user with a non-active subscription doesn't return status code 403."""
         with patch(
-            "terminusgps_notifier.authorizenet.get_subscription_status",
-            return_value="expired",
+            "terminusgps_notifier.models.Profile.has_active_subscription",
+            return_value=False,
         ):
             response = self.client.post(
                 "/v3/notify/sms/",
